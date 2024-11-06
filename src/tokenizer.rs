@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use Token::*;
 
-use crate::condition::{Condition, State};
+use crate::solver::{Condition, State};
 #[derive(Debug, Clone, Copy)]
 enum Token {
     Open,
@@ -10,6 +10,7 @@ enum Token {
     Or,
     Not,
     Identifier { index: usize },
+    Literal { value: bool },
 }
 
 pub(crate) struct Tokenizer {
@@ -75,9 +76,11 @@ impl Tokenizer {
         match c {
             '(' => Some(Open),
             ')' => Some(Close),
-            '|' => Some(Or),
-            '&' => Some(And),
-            '!' => Some(Not),
+            '|' | '∨' => Some(Or),
+            '&' | '∧' => Some(And),
+            '!' | '¬' => Some(Not),
+            '1' => Some(Literal { value: true }),
+            '0' => Some(Literal { value: false }),
             x => {
                 let mut id: String = x.to_string();
                 loop {
@@ -86,7 +89,7 @@ impl Tokenizer {
                         None => break,
                     };
                     match c {
-                        '(' | ')' | '!' | '|' | '&' => break,
+                        '(' | ')' | '!' | '¬' | '|' | '∨' | '&' | '∧' => break,
                         x if x.is_whitespace() => break,
                         x => {
                             self.commit_char();
@@ -125,31 +128,40 @@ impl Tokenizer {
         };
         let left = match token {
             Open => match self.next_condition() {
-                Some(x) => x,
+                Some(x) => match self.next_token() {
+                    Some(Token::Close) => x,
+                    _ => panic!("Unclosed parenthesis"),
+                },
                 None => return None,
             },
             Close => panic!("Syntax error: expression starts with Closing"),
-            And => panic!("Syntax error: And without left operand"),
+            And => return None, // Consume the AND at the start of an expression
             Or => panic!("Syntax error: Or without left operand"),
-            Not => match self.next_condition() {
-                Some(t) => return Some(Condition::Not { a: Box::new(t) }),
-                None => return None,
+            Not => match self.next_token() {
+                Some(Identifier { index }) => Condition::Not {
+                    a: Box::new(Condition::Variable { index }),
+                },
+                None => panic!("Syntax error: expected variable, got EOF"),
+                Some(e) => panic!("Syntax error: expected variable, got {:?}", e),
             },
             Identifier { index } => Condition::Variable { index },
+            Literal { value } => Condition::Constant { b: value },
         };
-        match self.next_token() {
+        match self.peek_token() {
             Some(t) => match t {
-                Open => panic!("Syntax error: Expected Operator, found Open"),
                 And | Close => Some(left),
-                Or => match self.next_condition() {
-                    Some(right) => Some(Condition::Or {
-                        l: Box::new(left),
-                        r: Box::new(right),
-                    }),
-                    None => panic!("Syntax error: Or without right operand"),
-                },
-                Not => panic!("Syntax error: Expected Operator, found Not"),
-                Identifier { .. } => panic!("Syntax error: Expected Operator, found Identifier"),
+                Or => {
+                    self.commit_token();
+                    match self.next_condition() {
+                        Some(right) => Some(Condition::Or {
+                            l: Box::new(left),
+                            r: Box::new(right),
+                        }),
+
+                        None => panic!("Syntax error: Or without right operand"),
+                    }
+                }
+                x => panic!("Syntax error: Expected Operator, found {:?}", x),
             },
             None => Some(left),
         }
@@ -160,7 +172,11 @@ impl Tokenizer {
         loop {
             match self.next_condition() {
                 Some(c) => out.push(c),
-                None => break,
+                None => match self.peek_token() {
+                    Some(And) => panic!("Syntax error: Expected expression, got AND"),
+                    None => break,
+                    Some(_) => continue,
+                },
             }
         }
         out

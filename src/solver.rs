@@ -28,7 +28,7 @@ pub enum SolveState {
     // Undetermined,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct State {
     vars: BitSet,
     conditions: Vec<Condition>,
@@ -178,6 +178,7 @@ impl State {
     }
 
     pub fn solve(&mut self) -> SolveState {
+        let before = self.clone();
         match self.simplify() {
             Some(x) => {
                 if x {
@@ -187,6 +188,7 @@ impl State {
                         ids: self.ids.clone(),
                     }
                 } else {
+                    *self = before;
                     SolveState::Unsolvable
                 }
             }
@@ -196,22 +198,21 @@ impl State {
                 } else {
                     self.cutoff += 1;
                     self.vars.insert(self.cutoff - 1);
-                    let out = match self.solve() {
+                    match self.solve() {
                         SolveState::Solved { vars, len, ids } => {
                             return SolveState::Solved { vars, len, ids }
                         }
-                        SolveState::Unsolvable => SolveState::Unsolvable,
-                        // SolveState::Undetermined => SolveState::Undetermined,
+                        SolveState::Unsolvable => (),
                     };
                     self.vars.remove(self.cutoff - 1);
                     let out = match self.solve() {
                         SolveState::Solved { vars, len, ids } => {
                             SolveState::Solved { vars, len, ids }
                         }
-                        SolveState::Unsolvable => out,
+                        SolveState::Unsolvable => SolveState::Unsolvable,
                         // SolveState::Undetermined => SolveState::Undetermined,
                     };
-                    self.cutoff -= 1; //backtracking
+                    *self = before; //backtracking
                     out
                 }
             }
