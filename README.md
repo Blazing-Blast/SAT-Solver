@@ -2,6 +2,10 @@
 
 > A naive SAT-solver written in Rust.
 
+## Usage
+
+Place all the formulas you want solved in the `examples/` directory, and run `cargo run`.
+
 ## Syntax
 
 The parser recognizes the following symbols:
