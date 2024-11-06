@@ -124,9 +124,9 @@ impl Condition {
 
     fn degree(&self) -> usize {
         match self {
-            Condition::Or { l, r } => l.degree() + r.degree() + 1,
-            Condition::Not { a } => a.degree() + 1,
-            Condition::Variable { .. } => 0,
+            Condition::Or { l, r } => l.degree() + r.degree(),
+            Condition::Not { a } => a.degree(),
+            Condition::Variable { .. } => 1,
             Condition::Constant { .. } => 0,
         }
     }
@@ -145,8 +145,9 @@ impl std::fmt::Display for SolveState {
                             "\n{}: {}",
                             ids[i],
                             match vars[i] {
-                                Some(b) => b,
-                                None => false,
+                                Some(true) => "true",
+                                Some(false) => "false",
+                                None => "free",
                             }
                         )
                         .as_str();

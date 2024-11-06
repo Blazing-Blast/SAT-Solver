@@ -35,16 +35,16 @@ gamma: false
 
 ## Solver
 
-The solver relies on a relatively naive algorithm:
-It arbitrarily takes the first unknown variable, and considers the cases of it being true and false.
+The solver relies on a relatively naive algorithm:d
+It takes the first unknown variable of the least complex expression, and considers the cases of it being true and false.
 In both cases, it simplifies the formula as far as possible.
-If the formula fully simplifies to `true`, then it returns the current set variables (with the unset ones arbitrarily set to `false`).
+If a formula fully simplifies to `true`, then it returns the current set variables.
 If both cases simplify to `false`, then it is known that the current combination of set variables does not yield a solution, so the algorithm backtracks and attempts a new combination.
 Finally, if the formula only partially simplifies, then the algorithm sets another variable, and probes deeper.
 
 If all cases are exhausted and there has still not been a single combination of variables that yields a `true` formula, then the algorithm concludes that there exists no solution.
 
-Future improvements should focus on optimizing which variable to set, and to what value to set it.
+Future improvements should focus on optimizing which variable to set, and what value to set it to.
 
 ## Memory model
 
