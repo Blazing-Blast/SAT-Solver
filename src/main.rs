@@ -17,7 +17,4 @@ fn main() {
     for path in paths {
         println!("\n{}: {}", read_to_string(&path).unwrap(), solve_file(path));
     }
-    // let mut state = tokenizer::Tokenizer::new("!a | !b & b".to_string()).to_state();
-    // dbg!(&state);
-    // println!("Solution: {}", state.solve());
 }
