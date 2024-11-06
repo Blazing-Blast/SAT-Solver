@@ -1,5 +1,3 @@
-use bit_set::BitSet;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Condition {
     Or {
@@ -20,21 +18,16 @@ pub enum Condition {
 #[derive(Debug)]
 pub enum SolveState {
     Solved {
-        vars: BitSet,
-        len: usize,
+        vars: Vec<Option<bool>>,
         ids: Vec<String>,
     },
     Unsolvable,
-    // Undetermined,
 }
 
 #[derive(Debug, Clone)]
 pub struct State {
-    vars: BitSet,
+    vars: Vec<Option<bool>>,
     conditions: Vec<Condition>,
-    // The index from where the undetermined bits start
-    cutoff: usize,
-    length: usize,
     ids: Vec<String>,
 }
 
@@ -119,6 +112,24 @@ impl Condition {
         }
         out
     }
+
+    fn find_first_var(&self) -> usize {
+        match self {
+            Condition::Or { l, .. } => l.find_first_var(),
+            Condition::Not { a } => a.find_first_var(),
+            Condition::Variable { index } => *index,
+            Condition::Constant { .. } => panic!("Unreachable code reached"),
+        }
+    }
+
+    fn degree(&self) -> usize {
+        match self {
+            Condition::Or { l, r } => l.degree() + r.degree() + 1,
+            Condition::Not { a } => a.degree() + 1,
+            Condition::Variable { .. } => 0,
+            Condition::Constant { .. } => 0,
+        }
+    }
 }
 
 impl std::fmt::Display for SolveState {
@@ -127,10 +138,18 @@ impl std::fmt::Display for SolveState {
             f,
             "{}",
             match self {
-                SolveState::Solved { vars, len, ids } => {
+                SolveState::Solved { vars, ids } => {
                     let mut out: String = String::new();
-                    for i in 0..*len {
-                        out += format!("\n{}: {}", ids[i], vars.contains(i)).as_str();
+                    for i in 0..vars.len() {
+                        out += format!(
+                            "\n{}: {}",
+                            ids[i],
+                            match vars[i] {
+                                Some(b) => b,
+                                None => false,
+                            }
+                        )
+                        .as_str();
                     }
                     out
                 }
@@ -142,10 +161,7 @@ impl std::fmt::Display for SolveState {
 
 impl State {
     fn get(&self, index: usize) -> Option<bool> {
-        if index >= self.cutoff {
-            return None;
-        }
-        Some(self.vars.contains(index))
+        self.vars[index]
     }
 
     pub fn simplify(&mut self) -> Option<bool> {
@@ -163,56 +179,53 @@ impl State {
         }
         new_conditions.retain(|x| *x != Condition::Constant { b: true });
         new_conditions.dedup();
+        new_conditions.sort_by(|x, y| x.degree().cmp(&y.degree()));
         self.conditions = new_conditions;
         out
     }
 
-    pub fn new(var_num: usize, conditions: Vec<Condition>, ids: Vec<String>) -> Self {
+    pub fn new(conditions: Vec<Condition>, ids: Vec<String>) -> Self {
         Self {
-            vars: BitSet::with_capacity(var_num),
+            vars: vec![None; ids.len()],
             conditions,
-            cutoff: 0,
-            length: var_num,
             ids,
         }
     }
 
     pub fn solve(&mut self) -> SolveState {
-        let before = self.clone();
+        let before = self.conditions.clone();
         match self.simplify() {
             Some(x) => {
                 if x {
                     SolveState::Solved {
-                        vars: self.vars.clone(),
-                        len: self.length,
+                        vars: self.vars.to_vec(),
                         ids: self.ids.clone(),
                     }
                 } else {
-                    *self = before;
                     SolveState::Unsolvable
                 }
             }
             None => {
-                if self.cutoff >= self.length {
+                if !self.vars.contains(&None) {
                     SolveState::Unsolvable
                 } else {
-                    self.cutoff += 1;
-                    self.vars.insert(self.cutoff - 1);
+                    let index = self.conditions[0].find_first_var();
+                    self.vars[index] = Some(true);
                     match self.solve() {
-                        SolveState::Solved { vars, len, ids } => {
-                            return SolveState::Solved { vars, len, ids }
+                        SolveState::Solved { vars, ids } => {
+                            return SolveState::Solved { vars, ids }
                         }
                         SolveState::Unsolvable => (),
                     };
-                    self.vars.remove(self.cutoff - 1);
+                    self.vars[index] = Some(false);
                     let out = match self.solve() {
-                        SolveState::Solved { vars, len, ids } => {
-                            SolveState::Solved { vars, len, ids }
-                        }
+                        SolveState::Solved { vars, ids } => SolveState::Solved { vars, ids },
                         SolveState::Unsolvable => SolveState::Unsolvable,
                         // SolveState::Undetermined => SolveState::Undetermined,
                     };
-                    *self = before; //backtracking
+                    // Backtracking
+                    self.vars[0] = None;
+                    self.conditions = before;
                     out
                 }
             }

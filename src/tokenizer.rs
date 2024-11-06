@@ -184,7 +184,6 @@ impl Tokenizer {
 
     pub fn to_state(mut self) -> State {
         let conditions = self.get_conditions();
-        let var_num = self.identifiers.len();
-        State::new(var_num, conditions, self.identifiers)
+        State::new(conditions, self.identifiers)
     }
 }
